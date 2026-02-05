@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="order-container">
+    <h2>Order Details: <span id="order-no">Loading...</span></h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Customer Info</h5>
+            <p><strong>Name:</strong> <span id="contact-name"></span></p>
+            <p><strong>Date:</strong> <span id="created-at"></span></p>
+        </div>
+    </div>
+
+    <h4>Items</h4>
+    <table class="table" id="items-table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Size</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Dynamic -->
+        </tbody>
+    </table>
+
+    <div class="text-end">
+        <h4>Total Amount: <span id="total-amount"></span></h4>
+    </div>
+
+    <a href="/orders/create/" class="btn btn-primary mt-3">Create Another Order</a>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const pathParts = window.location.pathname.split('/');
+        const orderId = pathParts[pathParts.length - 2] || pathParts[pathParts.length - 1];
+
+        if (!orderId) return;
+
+        const res = await ApiClient.request(`/orders/${orderId}/`);
+        if (res && res.ok) {
+            const order = await res.json();
+
+            document.getElementById('order-no').textContent = order.order_no;
+            document.getElementById('contact-name').textContent = order.contact_name;
+            document.getElementById('created-at').textContent = new Date(order.created_at).toLocaleString();
+            document.getElementById('total-amount').textContent = order.total_amount;
+
+            const tbody = document.querySelector('#items-table tbody');
+            order.items.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                <td>${item.product_name}</td>
+                <td>${item.size_name}</td>
+                <td>${item.qty}</td>
+                <td>${item.unit_price}</td>
+                <td>${item.line_total}</td>
+            `;
+                tbody.appendChild(row);
+            });
+        } else {
+            showAlert('Order not found', 'danger');
+        }
+    });
+</script>
+{% endblock %}

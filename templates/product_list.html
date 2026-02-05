@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Products</h2>
+    <a href="/products/create/" class="btn btn-success">Create New Product</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <table class="table table-striped" id="products-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>SKU</th>
+                    <th>Base Price</th>
+                    <th>Offer %</th>
+                    <th>Sizes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Dynamic Content -->
+                <tr>
+                    <td colspan="6" class="text-center">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const res = await ApiClient.request('/products/');
+            if (res && res.ok) {
+                const products = await res.json();
+                const tbody = document.querySelector('#products-table tbody');
+                tbody.innerHTML = '';
+
+                if (products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No products found.</td></tr>';
+                    return;
+                }
+
+                products.forEach(p => {
+                    const sizes = p.size_prices.map(s => `<span class="badge bg-secondary me-1">${s.size_name}: ${s.price}</span>`).join('');
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                    <td>${p.name}</td>
+                    <td>${p.sku}</td>
+                    <td>${p.base_price}</td>
+                    <td>${p.offer_percent}%</td>
+                    <td>${sizes || '-'}</td>
+                    <td>
+                        <a href="/products/${p.id}/update/" class="btn btn-sm btn-primary">Edit</a>
+                    </td>
+                `;
+                    tbody.appendChild(row);
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            showAlert('Failed to load products', 'danger');
+        }
+    });
+</script>
+{% endblock %}

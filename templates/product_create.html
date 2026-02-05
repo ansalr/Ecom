@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Create Product</h2>
+<form id="product-form">
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-control" id="name" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">SKU</label>
+            <input type="text" class="form-control" id="sku" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Base Price</label>
+            <input type="number" step="0.01" class="form-control" id="base_price" required>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Offer %</label>
+            <input type="number" step="0.01" class="form-control" id="offer_percent" value="0">
+        </div>
+    </div>
+
+    <h4>Sizes</h4>
+    <table class="table" id="sizes-table">
+        <thead>
+            <tr>
+                <th>Size Name</th>
+                <th>Price</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><input type="text" class="form-control size-name"></td>
+                <td><input type="number" step="0.01" class="form-control size-price"></td>
+                <td><button type="button" class="btn btn-danger btn-sm remove-row">Remove</button></td>
+            </tr>
+        </tbody>
+    </table>
+    <button type="button" class="btn btn-secondary mb-3" id="add-size-row">Add Size</button>
+    <br>
+    <button type="submit" class="btn btn-primary">Save Product</button>
+</form>
+
+<script>
+    document.getElementById('add-size-row').addEventListener('click', () => {
+        const tbody = document.querySelector('#sizes-table tbody');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+        <td><input type="text" class="form-control size-name"></td>
+        <td><input type="number" step="0.01" class="form-control size-price"></td>
+        <td><button type="button" class="btn btn-danger btn-sm remove-row">Remove</button></td>
+    `;
+        tbody.appendChild(row);
+    });
+
+    document.querySelector('#sizes-table tbody').addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-row')) {
+            e.target.closest('tr').remove();
+        }
+    });
+
+    document.getElementById('product-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const productData = {
+            name: document.getElementById('name').value,
+            sku: document.getElementById('sku').value,
+            base_price: document.getElementById('base_price').value,
+            offer_percent: document.getElementById('offer_percent').value
+        };
+
+        try {
+            const res = await ApiClient.request('/products/', 'POST', productData);
+            if (res && res.ok) {
+                const product = await res.json();
+                const productId = product.id;
+
+                const rows = document.querySelectorAll('#sizes-table tbody tr');
+                for (const row of rows) {
+                    const sizeName = row.querySelector('.size-name').value;
+                    const price = row.querySelector('.size-price').value;
+                    if (sizeName && price) {
+                        await ApiClient.request(`/products/${productId}/sizes/`, 'POST', {
+                            size_name: sizeName,
+                            price: price,
+                            product: productId
+                        });
+                    }
+                }
+                showAlert('Product created successfully');
+                document.getElementById('product-form').reset();
+                document.querySelector('#sizes-table tbody').innerHTML = `
+                <tr>
+                    <td><input type="text" class="form-control size-name"></td>
+                    <td><input type="number" step="0.01" class="form-control size-price"></td>
+                    <td><button type="button" class="btn btn-danger btn-sm remove-row">Remove</button></td>
+                </tr>`;
+            } else {
+                showAlert('Failed to create product', 'danger');
+            }
+        } catch (err) {
+            console.error(err);
+            showAlert('Error occurred', 'danger');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Create Order</h2>
+<form id="order-form">
+    <div class="mb-3">
+        <label class="form-label">Contact</label>
+        <select class="form-select" id="contact" required>
+            <option value="">Select</option>
+        </select>
+    </div>
+
+    <h4>Items</h4>
+    <table class="table" id="items-table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Size</thj>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Offer</th>
+                <th>Total</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- rows  -->
+        </tbody>
+    </table>
+    <button type="button" class="btn btn-secondary mb-3" id="add-item-btn">Add Item</button>
+
+    <div class="text-end">
+        <h4>Grand Total: <span id="grand-total">0.00</span></h4>
+    </div>
+
+    <button type="submit" class="btn btn-success btn-lg">Place Order</button>
+</form>
+
+<script>
+    let productsData = {}; 
+
+    async function init() {
+        const contactRes = await ApiClient.request('/contacts/');
+        if (contactRes && contactRes.ok) {
+            const contacts = await contactRes.json();
+            const contactSel = document.getElementById('contact');
+            contacts.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.first_name} ${c.last_name}`;
+                contactSel.appendChild(opt);
+            });
+        }
+
+        const productRes = await ApiClient.request('/products/');
+        if (productRes && productRes.ok) {
+            const products = await productRes.json();
+            products.forEach(p => productsData[p.id] = p);
+        }
+
+        addItemRow();
+    }
+
+    function addItemRow() {
+        const tbody = document.querySelector('#items-table tbody');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+        <td>
+            <select class="form-select product-select" required>
+                <option value="">Select</option>
+                ${Object.values(productsData).map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+            </select>
+        </td>
+        <td>
+            <select class="form-select size-select" required disabled>
+                <option value="">Select</option>
+            </select>
+        </td>
+        <td>
+            <input type="number" class="form-control qty-input" value="1" min="1" required>
+        </td>
+        <td><span class="unit-price">0.00</span></td>
+        <td><span class="offer-percent">0.00</span></td>
+        <td><span class="line-total">0.00</span></td>
+        <td><button type="button" class="btn btn-danger btn-sm remove-row">Remove</button></td>
+    `;
+        tbody.appendChild(row);
+    }
+
+    document.querySelector('#items-table tbody').addEventListener('change', (e) => {
+        const target = e.target;
+        const row = target.closest('tr');
+
+        if (target.classList.contains('product-select')) {
+            const productId = target.value;
+            const sizeSelect = row.querySelector('.size-select');
+
+            if (productId) {
+                const product = productsData[productId];
+                sizeSelect.innerHTML = '<option value="">Select Size...</option>';
+                sizeSelect.disabled = false;
+                if (product.size_prices && product.size_prices.length > 0) {
+                    product.size_prices.forEach(sp => {
+                        const opt = document.createElement('option');
+                        opt.value = sp.size_name;
+                        opt.textContent = `${sp.size_name} - ${sp.price}`;
+                        opt.dataset.price = sp.price;
+                        sizeSelect.appendChild(opt);
+                    });
+                }
+                else {
+                    const opt = document.createElement('option');
+                    opt.value = "Standard";
+                    opt.textContent = `Standard - ${product.base_price}`;
+                    opt.dataset.price = product.base_price;
+                    sizeSelect.appendChild(opt);
+                }
+
+            } else {
+                sizeSelect.innerHTML = '<option value="">Select Product First</option>';
+                sizeSelect.disabled = true;
+            }
+            updateRowTotals(row);
+        }
+        else if (target.classList.contains('size-select') || target.classList.contains('qty-input')) {
+            updateRowTotals(row);
+        }
+    });
+
+    document.querySelector('#items-table tbody').addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-row')) {
+            e.target.closest('tr').remove();
+            updateGrandTotal();
+        }
+    });
+
+    document.getElementById('add-item-btn').addEventListener('click', addItemRow);
+
+    function updateRowTotals(row) {
+        const productId = row.querySelector('.product-select').value;
+        const sizeSelect = row.querySelector('.size-select');
+        const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+
+        if (!productId || !sizeSelect.value) {
+            row.querySelector('.unit-price').textContent = "0.00";
+            row.querySelector('.offer-percent').textContent = "0.00";
+            row.querySelector('.line-total').textContent = "0.00";
+            updateGrandTotal();
+            return;
+        }
+
+        const product = productsData[productId];
+        let rawPrice = parseFloat(sizeSelect.options[sizeSelect.selectedIndex].dataset.price);
+        let finalPrice = rawPrice;
+        if (product.offer_percent > 0) {
+            finalPrice = rawPrice * (1 - product.offer_percent / 100);
+        }
+
+        row.querySelector('.unit-price').textContent = finalPrice.toFixed(2);
+        row.querySelector('.offer-percent').textContent = `${product.offer_percent}%`;
+        row.querySelector('.line-total').textContent = (finalPrice * qty).toFixed(2);
+        updateGrandTotal();
+    }
+
+    function updateGrandTotal() {
+        let total = 0;
+        document.querySelectorAll('.line-total').forEach(el => {
+            total += parseFloat(el.textContent);
+        });
+        document.getElementById('grand-total').textContent = total.toFixed(2);
+    }
+
+    document.getElementById('order-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const contactId = document.getElementById('contact').value;
+        const items = [];
+
+        document.querySelectorAll('#items-table tbody tr').forEach(row => {
+            const productId = row.querySelector('.product-select').value;
+            const sizeName = row.querySelector('.size-select').value;
+            const qty = row.querySelector('.qty-input').value;
+
+            if (productId && sizeName && qty) {
+                items.push({
+                    product_id: parseInt(productId),
+                    size_name: sizeName,
+                    qty: parseInt(qty)
+                });
+            }
+        });
+
+        if (items.length === 0) {
+            showAlert('Add at least one item', 'warning');
+            return;
+        }
+
+        const data = { contact_id: contactId, items: items };
+        try {
+            const res = await ApiClient.request('/orders/', 'POST', data);
+            if (res && res.ok) {
+                const order = await res.json();
+                window.location.href = `/orders/${order.id}/`;
+            } else {
+                const err = await res.json();
+                showAlert('Error: ' + JSON.stringify(err), 'danger');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', init);
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Create Organization</h2>
+<form id="org-form">
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control" id="name" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Address</label>
+        <textarea class="form-control" id="address"></textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">GST No</label>
+        <input type="text" class="form-control" id="gst_no">
+    </div>
+    <button type="submit" class="btn btn-primary">Create</button>
+</form>
+
+<script>
+    document.getElementById('org-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('name').value,
+            address: document.getElementById('address').value,
+            gst_no: document.getElementById('gst_no').value
+        };
+
+        const res = await ApiClient.request('/organizations/', 'POST', data);
+        if (res && res.ok) {
+            showAlert('Organization created!');
+            document.getElementById('org-form').reset();
+        } else {
+            showAlert('Failed to create', 'danger');
+        }
+    });
+</script>
+{% endblock %}
